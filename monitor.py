@@ -90,12 +90,18 @@ def main():
         captcha_api_key=config.CAPTCHA_API_KEY,
     )
 
-    # Try loading a browser-saved token first (skips login + CAPTCHA)
-    saved_token = load_saved_token()
-    if saved_token:
-        client.token = saved_token
-        client.token_expires = time.time() + 25 * 60
-        client.session.headers["Authorization"] = f"Bearer {saved_token}"
+    # Auth strategy: try direct LIFT API login first, fall back to saved token
+    if not client.login():
+        logger.info("Direct login failed, trying saved token...")
+        saved_token = load_saved_token()
+        if saved_token:
+            client.set_token(saved_token)
+        else:
+            logger.error(
+                "No authentication available. Either:\n"
+                "  1. Direct login will be retried each cycle, or\n"
+                "  2. Run 'python browser_login.py' to get a token"
+            )
 
     # ── Initialize notifier ──────────────────────────────────────────
     notifier = TelegramNotifier(
