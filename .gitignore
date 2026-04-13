@@ -14,3 +14,5 @@ env/
 
 *.log
 .DS_Store
+
+.vfs_token
