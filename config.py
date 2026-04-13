@@ -17,11 +17,15 @@ VFS_EMAIL = _require("VFS_EMAIL")
 VFS_PASSWORD = _require("VFS_PASSWORD")
 
 # VFS appointment parameters
-VFS_COUNTRY_CODE = _require("VFS_COUNTRY_CODE")    # e.g. "dza"
-VFS_MISSION_CODE = _require("VFS_MISSION_CODE")    # e.g. "ita"
-VFS_VAC_CODE = _require("VFS_VAC_CODE")            # e.g. "ALG" (Algiers center)
-VFS_VISA_CATEGORY = _require("VFS_VISA_CATEGORY")  # e.g. "SCH" (Schengen)
-VFS_VISA_SUBCATEGORY = os.getenv("VFS_VISA_SUBCATEGORY", "").strip()
+VFS_COUNTRY_CODE = _require("VFS_COUNTRY_CODE")    # "dza"
+VFS_MISSION_CODE = _require("VFS_MISSION_CODE")    # "ita"
+VFS_VAC_CODE = _require("VFS_VAC_CODE")            # Algiers center code
+
+# Comma-separated visa categories to monitor (e.g. "TOUR,BUS" or "SCH")
+# Run "python setup_helper.py" to find the exact codes for your center
+VFS_VISA_CATEGORIES = [
+    c.strip() for c in _require("VFS_VISA_CATEGORIES").split(",") if c.strip()
+]
 
 # Monitoring
 CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "180"))
@@ -30,7 +34,5 @@ CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "180"))
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 
-# Optional: 2captcha API key for solving reCAPTCHA
-# Algeria has reCAPTCHA on login + appointment. Without this, you may
-# need to use browser-assisted login (see browser_login.py).
+# Optional: 2captcha API key for reCAPTCHA
 CAPTCHA_API_KEY = os.getenv("CAPTCHA_API_KEY", "").strip()

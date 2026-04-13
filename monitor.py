@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-VFS Global Appointment Monitor
+VFS Global Appointment Monitor — Algeria → Italy
 
-Continuously checks for available visa appointment slots on the VFS
-LIFT API and sends a Telegram notification the instant one appears.
+Checks for available visa appointment slots across multiple visa
+categories (tourist, business, etc.) and sends Telegram alerts.
 
 Usage:
     1. cp .env.example .env && edit .env
     2. pip install -r requirements.txt
-    3. python setup_helper.py          (find your VAC code + visa category)
+    3. python setup_helper.py          (find your VAC code + visa categories)
     4. python browser_login.py         (solve CAPTCHA once, saves token)
     5. python monitor.py               (start monitoring)
 """
@@ -63,8 +63,12 @@ def load_saved_token() -> str | None:
 
 
 def main():
+    categories = config.VFS_VISA_CATEGORIES
+
     logger.info("=" * 60)
     logger.info("  VFS Appointment Monitor")
+    logger.info("  Route: DZA -> ITA (Algiers)")
+    logger.info("  Categories: %s", ", ".join(categories))
     logger.info("=" * 60)
 
     # ── Initialize VFS client ────────────────────────────────────────
@@ -74,8 +78,6 @@ def main():
         country_code=config.VFS_COUNTRY_CODE,
         mission_code=config.VFS_MISSION_CODE,
         vac_code=config.VFS_VAC_CODE,
-        visa_category=config.VFS_VISA_CATEGORY,
-        visa_subcategory=config.VFS_VISA_SUBCATEGORY,
         captcha_api_key=config.CAPTCHA_API_KEY,
     )
 
@@ -95,7 +97,7 @@ def main():
     config_summary = (
         f"Route: {config.VFS_COUNTRY_CODE.upper()} -> {config.VFS_MISSION_CODE.upper()}\n"
         f"Center: {config.VFS_VAC_CODE}\n"
-        f"Category: {config.VFS_VISA_CATEGORY}\n"
+        f"Categories: {', '.join(categories)}\n"
         f"Interval: every {config.CHECK_INTERVAL_SECONDS}s"
     )
     logger.info("Config:\n%s", config_summary)
@@ -103,73 +105,85 @@ def main():
 
     # ── Main loop ────────────────────────────────────────────────────
     consecutive_errors = 0
-    last_notified = 0
-    notify_cooldown = 300  # re-notify at most every 5 minutes
+    last_notified: dict[str, float] = {}  # per-category cooldown
+    notify_cooldown = 300
     token_expired_notified = False
 
     while _running:
-        logger.info("Checking for available appointments...")
+        logger.info("Checking %d category(ies)...", len(categories))
 
-        # Primary check: CheckIsSlotAvailable
-        result = client.check_slot_available()
+        had_error = False
 
-        if result.get("error"):
-            consecutive_errors += 1
-            error_msg = result["error"]
-            logger.warning("Check failed (%d): %s", consecutive_errors, error_msg)
+        for category in categories:
+            if not _running:
+                break
 
-            # Detect token expiry — user needs to re-run browser_login.py
-            if "401" in str(error_msg) or "auth" in str(error_msg).lower():
-                if not token_expired_notified:
-                    notifier.send(
-                        "*VFS Monitor: Token expired*\n\n"
-                        "Run `python browser_login.py` to re-authenticate.\n"
-                        "The monitor will pick up the new token automatically."
-                    )
-                    token_expired_notified = True
+            logger.info("[%s] Checking availability...", category)
+            result = client.check_slot_available(category)
 
-                # Check for a refreshed token file
-                new_token = load_saved_token()
-                if new_token and new_token != client.token:
-                    logger.info("New token detected from browser_login.py!")
-                    client.token = new_token
-                    client.token_expires = time.time() + 25 * 60
-                    client.session.headers["Authorization"] = f"Bearer {new_token}"
-                    token_expired_notified = False
-                    consecutive_errors = 0
-                    continue
+            if result.get("error"):
+                had_error = True
+                error_msg = result["error"]
+                logger.warning("[%s] Failed: %s", category, error_msg)
 
-            if consecutive_errors == 5:
-                notifier.send(
-                    f"*VFS Monitor: repeated errors*\n\n"
-                    f"Last error: {error_msg}\n\n"
-                    f"The monitor will keep retrying."
-                )
-        else:
-            consecutive_errors = 0
-            token_expired_notified = False
+                # Detect token expiry
+                if "401" in str(error_msg) or "auth" in str(error_msg).lower():
+                    if not token_expired_notified:
+                        notifier.send(
+                            "*VFS Monitor: Token expired*\n\n"
+                            "Run `python browser_login.py` to re-authenticate.\n"
+                            "Monitor will pick up the new token automatically."
+                        )
+                        token_expired_notified = True
 
-            if result["available"]:
+                    new_token = load_saved_token()
+                    if new_token and new_token != client.token:
+                        logger.info("New token detected!")
+                        client.token = new_token
+                        client.token_expires = time.time() + 25 * 60
+                        client.session.headers["Authorization"] = f"Bearer {new_token}"
+                        token_expired_notified = False
+                        consecutive_errors = 0
+                        break  # restart the category loop with fresh token
+
+            elif result["available"]:
                 slots = result["slots"]
-                logger.info("SLOTS FOUND! %d slot(s).", len(slots))
+                logger.info("[%s] SLOTS FOUND! %d slot(s).", category, len(slots))
 
                 now = time.time()
-                if now - last_notified >= notify_cooldown:
+                last = last_notified.get(category, 0)
+                if now - last >= notify_cooldown:
                     alert = format_slot_alert(
                         slots,
                         config.VFS_COUNTRY_CODE,
                         config.VFS_MISSION_CODE,
                         config.VFS_VAC_CODE,
-                        config.VFS_VISA_CATEGORY,
+                        category,
                     )
                     logger.info("\n%s", alert)
                     notifier.send(alert)
-                    last_notified = now
+                    last_notified[category] = now
                 else:
-                    logger.info("Slots still available (cooldown active).")
+                    logger.info("[%s] Slots still available (cooldown).", category)
             else:
-                logger.info("No slots available.")
-                logger.debug("Raw response: %s", result.get("raw"))
+                logger.info("[%s] No slots.", category)
+
+            # Small delay between category checks to avoid hammering
+            if len(categories) > 1:
+                time.sleep(2)
+
+        # Track consecutive errors
+        if had_error:
+            consecutive_errors += 1
+            if consecutive_errors == 5:
+                notifier.send(
+                    "*VFS Monitor: repeated errors*\n\n"
+                    "5 consecutive check cycles have failed.\n"
+                    "Monitor will keep retrying."
+                )
+        else:
+            consecutive_errors = 0
+            token_expired_notified = False
 
         # ── Sleep ────────────────────────────────────────────────────
         if consecutive_errors > 0:

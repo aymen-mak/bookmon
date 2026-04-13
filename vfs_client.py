@@ -73,16 +73,14 @@ class VFSClient:
     """
 
     def __init__(self, email: str, password: str, country_code: str,
-                 mission_code: str, vac_code: str, visa_category: str,
-                 visa_subcategory: str = "", captcha_api_key: str = ""):
+                 mission_code: str, vac_code: str,
+                 captcha_api_key: str = ""):
         self.email = email
         self.password = password
         self.country_code = country_code.lower()
         self.mission_code = mission_code.lower()
         self.vac_code = vac_code
-        self.visa_category = visa_category
-        self.visa_subcategory = visa_subcategory
-        self.captcha_api_key = captcha_api_key  # 2captcha API key (optional)
+        self.captcha_api_key = captcha_api_key
 
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
@@ -173,7 +171,7 @@ class VFSClient:
 
     # ── Appointment Availability ─────────────────────────────────────
 
-    def check_slot_available(self) -> dict:
+    def check_slot_available(self, visa_category: str) -> dict:
         """
         POST appointment/CheckIsSlotAvailable
 
@@ -182,7 +180,7 @@ class VFSClient:
             "countryCode": "dza",
             "missionCode": "ita",
             "vacCode": "ALG",
-            "visaCategoryCode": "SCH",
+            "visaCategoryCode": "TOUR",
             "roleName": "Individual",
             "loginUser": "user@email.com"
         }
@@ -201,14 +199,14 @@ class VFSClient:
             "countryCode": self.country_code,
             "missionCode": self.mission_code,
             "vacCode": self.vac_code,
-            "visaCategoryCode": self.visa_category,
+            "visaCategoryCode": visa_category,
             "roleName": "Individual",
             "loginUser": self.email,
         }
 
         return self._post_appointment(ENDPOINTS["check_slot"], payload)
 
-    def get_calendar(self) -> dict:
+    def get_calendar(self, visa_category: str) -> dict:
         """POST appointment/calendar — get available calendar dates."""
         if not self.ensure_authenticated():
             return {"available": False, "slots": [], "raw": {}, "error": "Authentication failed"}
@@ -217,13 +215,13 @@ class VFSClient:
             "countryCode": self.country_code,
             "missionCode": self.mission_code,
             "vacCode": self.vac_code,
-            "visaCategoryCode": self.visa_category,
+            "visaCategoryCode": visa_category,
             "loginUser": self.email,
         }
 
         return self._post_appointment(ENDPOINTS["calendar"], payload)
 
-    def get_timeslots(self, date: str) -> dict:
+    def get_timeslots(self, visa_category: str, date: str) -> dict:
         """POST appointment/timeslot — get time slots for a specific date."""
         if not self.ensure_authenticated():
             return {"available": False, "slots": [], "raw": {}, "error": "Authentication failed"}
@@ -232,7 +230,7 @@ class VFSClient:
             "countryCode": self.country_code,
             "missionCode": self.mission_code,
             "vacCode": self.vac_code,
-            "visaCategoryCode": self.visa_category,
+            "visaCategoryCode": visa_category,
             "loginUser": self.email,
             "appointmentDate": date,
         }
