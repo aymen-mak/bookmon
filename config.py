@@ -12,27 +12,30 @@ def _require(name: str) -> str:
     return val
 
 
+def _optional(name: str, default: str = "") -> str:
+    return os.getenv(name, default).strip()
+
+
 # VFS credentials
 VFS_EMAIL = _require("VFS_EMAIL")
 VFS_PASSWORD = _require("VFS_PASSWORD")
 
-# VFS appointment parameters
+# VFS route
 VFS_COUNTRY_CODE = _require("VFS_COUNTRY_CODE")    # "dza"
 VFS_MISSION_CODE = _require("VFS_MISSION_CODE")    # "ita"
-VFS_VAC_CODE = _require("VFS_VAC_CODE")            # Algiers center code
 
-# Comma-separated visa categories to monitor (e.g. "TOUR,BUS" or "SCH")
-# Run "python setup_helper.py" to find the exact codes for your center
+# These may be empty during initial setup (before running setup_helper.py)
+VFS_VAC_CODE = _optional("VFS_VAC_CODE")           # Algiers center code
 VFS_VISA_CATEGORIES = [
-    c.strip() for c in _require("VFS_VISA_CATEGORIES").split(",") if c.strip()
+    c.strip() for c in _optional("VFS_VISA_CATEGORIES").split(",") if c.strip()
 ]
 
 # Monitoring
 CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "180"))
 
 # Telegram
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+TELEGRAM_BOT_TOKEN = _optional("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = _optional("TELEGRAM_CHAT_ID")
 
 # Optional: 2captcha API key for reCAPTCHA
-CAPTCHA_API_KEY = os.getenv("CAPTCHA_API_KEY", "").strip()
+CAPTCHA_API_KEY = _optional("CAPTCHA_API_KEY")

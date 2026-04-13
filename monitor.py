@@ -63,11 +63,20 @@ def load_saved_token() -> str | None:
 
 
 def main():
+    # Validate required config
+    if not config.VFS_VAC_CODE:
+        logger.error("VFS_VAC_CODE is not set. Run 'python setup_helper.py' first.")
+        return
+    if not config.VFS_VISA_CATEGORIES:
+        logger.error("VFS_VISA_CATEGORIES is not set. Run 'python setup_helper.py' first.")
+        return
+
     categories = config.VFS_VISA_CATEGORIES
 
     logger.info("=" * 60)
     logger.info("  VFS Appointment Monitor")
-    logger.info("  Route: DZA -> ITA (Algiers)")
+    logger.info("  Route: %s -> %s", config.VFS_COUNTRY_CODE.upper(), config.VFS_MISSION_CODE.upper())
+    logger.info("  Center: %s", config.VFS_VAC_CODE)
     logger.info("  Categories: %s", ", ".join(categories))
     logger.info("=" * 60)
 
